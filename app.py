@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask import Flask, render_template, request, redirect, url_for, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from database.db import get_db, init_db, seed_db
@@ -91,7 +93,7 @@ def login():
 
     session["user_id"] = user["id"]
     session["user_name"] = user["name"]
-    return redirect(url_for("landing"))
+    return redirect(url_for("profile"))
 
 
 @app.route("/terms")
@@ -116,7 +118,58 @@ def logout():
 
 @app.route("/profile")
 def profile():
-    return "Profile page — coming in Step 4"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT name, email, created_at FROM users WHERE id = ?",
+            (session["user_id"],),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    name_parts = row["name"].split()
+    initials = "".join(part[0] for part in name_parts[:2]).upper()
+    member_since = datetime.strptime(
+        row["created_at"], "%Y-%m-%d %H:%M:%S"
+    ).strftime("%B %Y")
+
+    user = {
+        "initials": initials,
+        "name": row["name"],
+        "email": row["email"],
+        "member_since": member_since,
+    }
+    stats = [
+        {"label": "Total spent", "value": "₹345.99"},
+        {"label": "Transactions", "value": "8"},
+        {"label": "Top category", "value": "Bills"},
+    ]
+    transactions = [
+        {"date": "2026-06-15", "description": "Dinner with friends", "category": "Food", "slug": "food", "amount": "₹18.75"},
+        {"date": "2026-06-13", "description": "Miscellaneous", "category": "Other", "slug": "other", "amount": "₹9.99"},
+        {"date": "2026-06-11", "description": "Clothing", "category": "Shopping", "slug": "shopping", "amount": "₹80.00"},
+        {"date": "2026-06-09", "description": "Movie ticket", "category": "Entertainment", "slug": "entertainment", "amount": "₹25.00"},
+        {"date": "2026-06-07", "description": "Pharmacy", "category": "Health", "slug": "health", "amount": "₹35.00"},
+    ]
+    categories = [
+        {"name": "Bills", "slug": "bills", "total": "₹120.00", "percent": 35},
+        {"name": "Shopping", "slug": "shopping", "total": "₹80.00", "percent": 23},
+        {"name": "Transport", "slug": "transport", "total": "₹45.00", "percent": 13},
+        {"name": "Health", "slug": "health", "total": "₹35.00", "percent": 10},
+        {"name": "Food", "slug": "food", "total": "₹31.25", "percent": 9},
+        {"name": "Entertainment", "slug": "entertainment", "total": "₹25.00", "percent": 7},
+        {"name": "Other", "slug": "other", "total": "₹9.99", "percent": 3},
+    ]
+    return render_template(
+        "profile.html",
+        user=user,
+        stats=stats,
+        transactions=transactions,
+        categories=categories,
+    )
 
 
 @app.route("/expenses/add")
